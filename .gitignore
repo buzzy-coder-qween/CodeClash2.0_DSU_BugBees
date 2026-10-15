@@ -1,0 +1,10 @@
+datasets/*
+!datasets/README.md
+runs/
+models/*.pt
+models/*.metadata.json
+data/
+.env
+.venv/
+__pycache__/
+*.py[cod]
