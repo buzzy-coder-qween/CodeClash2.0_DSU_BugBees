@@ -56,3 +56,16 @@ def render_sidebar(twin_system, authenticated_user):
     if st.sidebar.button("Simulate sensor update", icon=":material/refresh:", width="stretch"):
         twin_system.simulate_realtime_drift()
         st.toast("Sensor values updated")
+    if st.sidebar.button("Simulate waste deposit", icon=":material/delete:", width="stretch"):
+        deposit_event = twin_system.simulate_waste_deposit()
+        if deposit_event:
+            st.session_state["last_deposit_event"] = deposit_event
+            # Append to rolling deposit history (keep last 50)
+            deposit_history = st.session_state.setdefault("deposit_history", [])
+            deposit_history.insert(0, deposit_event)
+            st.session_state["deposit_history"] = deposit_history[:50]
+            st.toast(
+                f"{deposit_event['icon']}  {deposit_event['item_name']} → "
+                f"{deposit_event['category']} → {deposit_event['bin_short']}"
+            )
+

@@ -267,3 +267,120 @@ class SmartBinSystem:
             bin_details["battery"] = battery
             self._calculate_fill(bin_details)
         self._record_history()
+
+    # ------------------------------------------------------------------
+    # Simulated waste deposit
+    # ------------------------------------------------------------------
+    _SIMULATED_WASTE_ITEMS = [
+        # (item_name,  category,           icon, weight_kg_range)
+        ("Plastic Bottle",       "Recyclables",   "🧴",  (0.02, 0.05)),
+        ("Aluminium Can",        "Recyclables",   "🥫",  (0.01, 0.03)),
+        ("Glass Jar",            "Recyclables",   "🫙",  (0.15, 0.40)),
+        ("Broken Glass",         "Recyclables",   "🔷",  (0.05, 0.25)),
+        ("Plastic Container",    "Recyclables",   "📦",  (0.03, 0.08)),
+        ("Cardboard Box",        "Paper & Card",  "📦",  (0.10, 0.30)),
+        ("Newspaper",            "Paper & Card",  "📰",  (0.05, 0.15)),
+        ("Egg Carton",           "Paper & Card",  "🥚",  (0.02, 0.04)),
+        ("Paper Cup",            "Paper & Card",  "☕",  (0.01, 0.02)),
+        ("Tissue Paper",         "Paper & Card",  "🧻",  (0.01, 0.02)),
+        ("Banana Peel",          "Organic",       "🍌",  (0.05, 0.12)),
+        ("Apple Core",           "Organic",       "🍎",  (0.04, 0.08)),
+        ("Food Scraps",          "Organic",       "🍲",  (0.10, 0.35)),
+        ("Orange Peel",          "Organic",       "🍊",  (0.06, 0.10)),
+        ("Tea Bags",             "Organic",       "🍵",  (0.01, 0.03)),
+        ("Old Phone",            "E-Waste",       "📱",  (0.10, 0.20)),
+        ("USB Cable",            "E-Waste",       "🔌",  (0.02, 0.05)),
+        ("Circuit Board",        "E-Waste",       "🖥️",  (0.05, 0.15)),
+        ("Broken Earphones",     "E-Waste",       "🎧",  (0.01, 0.04)),
+        ("Old Charger",          "E-Waste",       "🔋",  (0.03, 0.08)),
+        ("Battery",              "Hazardous",     "🔋",  (0.02, 0.10)),
+        ("Paint Can",            "Hazardous",     "🎨",  (0.20, 0.80)),
+        ("Fluorescent Bulb",     "Hazardous",     "💡",  (0.05, 0.12)),
+        ("Cigarette Butt",       "Hazardous",     "🚬",  (0.01, 0.01)),
+        ("Chemical Spray Can",   "Hazardous",     "⚠️",  (0.10, 0.30)),
+        ("Chip Bag",             "Landfill",      "🗑️",  (0.01, 0.03)),
+        ("Styrofoam Cup",        "Landfill",      "🥤",  (0.01, 0.02)),
+        ("Diaper",               "Landfill",      "🚼",  (0.15, 0.35)),
+        ("Broken Ceramic",       "Landfill",      "🍽️",  (0.10, 0.40)),
+        ("Old Shoe",             "Landfill",      "👟",  (0.20, 0.50)),
+    ]
+
+    _CATEGORY_META = {
+        "Recyclables":  {"color": "#24a8d1", "badge": "♻️  RECYCLABLE",   "risk": "Low"},
+        "Paper & Card": {"color": "#b58a37", "badge": "📄  PAPER / CARD", "risk": "Low"},
+        "Organic":      {"color": "#11a982", "badge": "🌿  ORGANIC",      "risk": "Low"},
+        "E-Waste":      {"color": "#8b65bd", "badge": "⚡  E-WASTE",      "risk": "Medium"},
+        "Hazardous":    {"color": "#bd4654", "badge": "☣️  HAZARDOUS",    "risk": "High"},
+        "Landfill":     {"color": "#657177", "badge": "▣  LANDFILL",     "risk": "Low"},
+    }
+
+    def simulate_waste_deposit(self):
+        """Simulate a random waste item being dropped into the smartest bin.
+
+        Picks a random waste item, classifies it by category, selects the
+        best matching bin (type affinity first, then lowest fill), deposits
+        an estimated volume, and returns a dict describing the event.
+        """
+        item_name, category, icon, (weight_lo, weight_hi) = random.choice(
+            self._SIMULATED_WASTE_ITEMS
+        )
+        weight_kg = round(random.uniform(weight_lo, weight_hi), 3)
+
+        # --- Map category to the closest matching bin type ---
+        _TYPE_AFFINITY = {
+            "Recyclables":  ("Plastic", "Glass", "Mixed"),
+            "Paper & Card": ("Paper", "Mixed"),
+            "Organic":      ("Mixed",),
+            "E-Waste":      ("Mixed",),
+            "Hazardous":    ("Mixed",),
+            "Landfill":     ("Mixed",),
+        }
+        affinity = _TYPE_AFFINITY.get(category, ("Mixed",))
+
+        # Prefer bins whose type matches, then fallback to the least-full bin
+        best_bin_id = None
+        best_fill = 999
+        fallback_bin_id = None
+        fallback_fill = 999
+        for bin_id, details in self.bins.items():
+            current_fill = details.get("fill_level", 0)
+            if details.get("type") in affinity and current_fill < best_fill:
+                best_bin_id = bin_id
+                best_fill = current_fill
+            if current_fill < fallback_fill:
+                fallback_bin_id = bin_id
+                fallback_fill = current_fill
+
+        target_bin_id = best_bin_id or fallback_bin_id
+        if target_bin_id is None:
+            return None  # no bins (shouldn't happen)
+
+        target = self.bins[target_bin_id]
+
+        # Decrease the ultrasonic air gap to simulate waste added
+        deposit_cm = random.uniform(0.5, 2.5)
+        new_distance = max(0.0, target["ultrasonic_distance_cm"] - deposit_cm)
+        old_fill = target["fill_level"]
+        target["ultrasonic_distance_cm"] = new_distance
+        self._calculate_fill(target)
+        new_fill = target["fill_level"]
+        self._record_history()
+
+        meta = self._CATEGORY_META.get(category, self._CATEGORY_META["Landfill"])
+        return {
+            "item_name": item_name,
+            "category": category,
+            "icon": icon,
+            "weight_kg": weight_kg,
+            "bin_id": target_bin_id,
+            "bin_short": target_bin_id.split(" (")[0],
+            "bin_location": target_bin_id.partition(" (")[2].rstrip(")"),
+            "old_fill": round(old_fill, 1),
+            "new_fill": round(new_fill, 1),
+            "deposit_cm": round(deposit_cm, 1),
+            "status": target["status"],
+            "badge": meta["badge"],
+            "color": meta["color"],
+            "risk": meta["risk"],
+            "timestamp": datetime.now().strftime("%H:%M:%S"),
+        }

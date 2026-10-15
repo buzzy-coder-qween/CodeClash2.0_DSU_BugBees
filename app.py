@@ -141,10 +141,92 @@ st.markdown(
     .seg-bin-count { color:#aab5b3; font:9px 'IBM Plex Mono',monospace; margin-top:6px; }
     .seg-detection { color:#d6dfdd; font-size:11px; }
     .seg-detection strong { color:#4cdbb0; }
+
+    /* ── Waste Deposit Notification Card ── */
+    .deposit-card {
+        position: relative; padding: 18px 20px; border-radius: 12px;
+        background: linear-gradient(135deg, #111719 0%, #151d1f 100%);
+        border: 1px solid var(--line); overflow: hidden;
+    }
+    .deposit-card::before {
+        content: ''; position: absolute; inset: 0;
+        background: linear-gradient(135deg, var(--deposit-accent, #46d8ad) 0%, transparent 60%);
+        opacity: .06; pointer-events: none;
+    }
+    .deposit-card-header {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 12px;
+    }
+    .deposit-card-title {
+        display: flex; align-items: center; gap: 8px;
+        color: var(--text); font-size: 14px; font-weight: 700;
+    }
+    .deposit-card-time {
+        color: var(--muted); font: 10px 'IBM Plex Mono', monospace;
+    }
+    .deposit-item-row {
+        display: flex; align-items: center; gap: 12px; margin-bottom: 14px;
+    }
+    .deposit-item-icon {
+        width: 48px; height: 48px; display: grid; place-items: center;
+        border-radius: 12px; font-size: 24px;
+    }
+    .deposit-item-name {
+        color: #edf3f1; font-size: 18px; font-weight: 700; line-height: 1.2;
+    }
+    .deposit-item-category {
+        margin-top: 3px; font: 600 10px 'IBM Plex Mono', monospace;
+        letter-spacing: .6px;
+    }
+    .deposit-meta-grid {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+        margin-top: 10px;
+    }
+    .deposit-meta-cell {
+        background: #0d1314; border-radius: 8px; padding: 8px 10px;
+    }
+    .deposit-meta-label {
+        color: #758183; font-size: 8px; font-weight: 700; letter-spacing: .7px;
+    }
+    .deposit-meta-value {
+        color: #d7e0de; font: 600 12px 'IBM Plex Mono', monospace; margin-top: 4px;
+    }
+    .deposit-fill-bar {
+        margin-top: 12px; display: flex; align-items: center; gap: 10px;
+    }
+    .deposit-fill-track {
+        flex: 1; height: 8px; background: #20282a; border-radius: 8px; overflow: hidden;
+    }
+    .deposit-fill-inner {
+        height: 100%; border-radius: 8px; transition: width .4s ease;
+    }
+    .deposit-fill-label {
+        color: #aab5b3; font: 10px 'IBM Plex Mono', monospace; white-space: nowrap;
+    }
+    .deposit-risk-badge {
+        display: inline-block; padding: 3px 9px; border-radius: 20px;
+        font-size: 9px; font-weight: 700;
+    }
+    .deposit-risk-badge.low  { color: #6fe0bb; background: #18352d; }
+    .deposit-risk-badge.medium { color: #c9a0f0; background: #2a1f3a; }
+    .deposit-risk-badge.high { color: #ff9399; background: #3a2226; }
+    .deposit-history-title {
+        color: var(--text); font-size: 15px; font-weight: 700;
+    }
+    .deposit-history-note {
+        color: var(--muted); font-size: 10px; margin-top: 3px;
+    }
+    .deposit-empty-state {
+        padding: 28px; text-align: center; color: #748183; font-size: 12px;
+        background: #090e0f; border: 1px solid #20292b; border-radius: 8px;
+        margin-top: 10px;
+    }
+
     @media (max-width: 760px) {
         .seg-bin-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
         .seg-preview { min-height:180px; aspect-ratio: 1.5 / 1; }
         .seg-stat-row { justify-content:flex-start; flex-wrap:wrap; margin-top:10px; }
+        .deposit-meta-grid { grid-template-columns: repeat(2, 1fr); }
     }
     @media (max-width: 900px) {
         section[data-testid="stSidebar"] { width: 235px !important; min-width: 235px !important; }
@@ -594,4 +676,92 @@ else:
                 unsafe_allow_html=True,
             )
         st.dataframe(pd.DataFrame(event_rows), hide_index=True, width="stretch", height=210)
+
+    # ── Simulated Waste Deposit Card & History ──
+    deposit_event = st.session_state.get("last_deposit_event")
+    deposit_history = st.session_state.get("deposit_history", [])
+
+    deposit_col, history_col = st.columns([1.2, 1], gap="medium")
+    with deposit_col:
+        with st.container(border=True, key="deposit_card_panel"):
+            st.markdown('<div class="event-heading">\U0001f5d1\ufe0f Simulated Waste Deposit</div>', unsafe_allow_html=True)
+            st.markdown('<div class="event-caption">Click \u201cSimulate waste deposit\u201d in the sidebar to classify a random waste item</div>', unsafe_allow_html=True)
+            if deposit_event:
+                severity = "critical" if deposit_event["status"] == "Critical" else "warning" if deposit_event["status"] == "Warning" else "normal"
+                risk_class = deposit_event["risk"].lower()
+                st.markdown(
+                    f"""
+                    <div class="deposit-card" style="--deposit-accent:{deposit_event['color']}">
+                      <div class="deposit-card-header">
+                        <div class="deposit-card-title">\u2726 New Deposit Detected</div>
+                        <div class="deposit-card-time">{deposit_event['timestamp']}</div>
+                      </div>
+                      <div class="deposit-item-row">
+                        <div class="deposit-item-icon" style="background:{deposit_event['color']}18;color:{deposit_event['color']}">{deposit_event['icon']}</div>
+                        <div>
+                          <div class="deposit-item-name">{escape(deposit_event['item_name'])}</div>
+                          <div class="deposit-item-category" style="color:{deposit_event['color']}">{deposit_event['badge']}</div>
+                        </div>
+                      </div>
+                      <div class="deposit-meta-grid">
+                        <div class="deposit-meta-cell">
+                          <div class="deposit-meta-label">TARGET BIN</div>
+                          <div class="deposit-meta-value">{deposit_event['bin_short']}</div>
+                        </div>
+                        <div class="deposit-meta-cell">
+                          <div class="deposit-meta-label">LOCATION</div>
+                          <div class="deposit-meta-value">{escape(deposit_event['bin_location'] or chr(8212))}</div>
+                        </div>
+                        <div class="deposit-meta-cell">
+                          <div class="deposit-meta-label">WEIGHT</div>
+                          <div class="deposit-meta-value">{deposit_event['weight_kg']:.3f} kg</div>
+                        </div>
+                        <div class="deposit-meta-cell">
+                          <div class="deposit-meta-label">RISK</div>
+                          <div class="deposit-meta-value"><span class="deposit-risk-badge {risk_class}">{deposit_event['risk']}</span></div>
+                        </div>
+                      </div>
+                      <div class="deposit-fill-bar">
+                        <div class="deposit-fill-label">{deposit_event['old_fill']}%</div>
+                        <div class="deposit-fill-track"><div class="deposit-fill-inner {severity}" style="width:{deposit_event['new_fill']}%;background:{deposit_event['color']}"></div></div>
+                        <div class="deposit-fill-label">{deposit_event['new_fill']}%</div>
+                      </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    '<div class="deposit-empty-state">\U0001f5d1\ufe0f No deposits simulated yet.<br>Use the sidebar button to simulate a waste item being deposited.</div>',
+                    unsafe_allow_html=True,
+                )
+    with history_col:
+        with st.container(border=True, key="deposit_history_panel"):
+            hist_title, hist_count = st.columns([1, 1], vertical_alignment="center")
+            with hist_title:
+                st.markdown('<div class="deposit-history-title">Deposit History</div>', unsafe_allow_html=True)
+                st.markdown('<div class="deposit-history-note">Classified waste items log</div>', unsafe_allow_html=True)
+            with hist_count:
+                st.markdown(
+                    f'<div style="text-align:right;color:#899597;font:10px \'IBM Plex Mono\',monospace">{len(deposit_history)} deposits</div>',
+                    unsafe_allow_html=True,
+                )
+            if deposit_history:
+                history_rows = [
+                    {
+                        "TIME": evt["timestamp"],
+                        "ITEM": evt["item_name"],
+                        "CATEGORY": evt["category"],
+                        "RISK": evt["risk"],
+                        "BIN": evt["bin_short"],
+                        "FILL": f"{evt['new_fill']}%",
+                    }
+                    for evt in deposit_history
+                ]
+                st.dataframe(pd.DataFrame(history_rows), hide_index=True, width="stretch", height=250)
+            else:
+                st.markdown(
+                    '<div class="deposit-empty-state">No deposit history yet.</div>',
+                    unsafe_allow_html=True,
+                )
 
