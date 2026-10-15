@@ -11,11 +11,14 @@ import streamlit as st
 from core.twin import SmartBinSystem
 from core.auth import AuthService
 from core.waste_taxonomy import get_ewaste_model_path, get_waste_model_path
+from ui.alerts import show_operational_alerts
 from ui.analytics import render_analytics_page
 from ui.authentication import render_authentication
+from ui.bin_network import render_bin_network_page
 from ui.camera import show_segregation_camera
 from ui.navigation import render_sidebar
 from ui.sensors import render_sensors_page
+from ui.settings import render_settings_page
 
 st.set_page_config(page_title="EcoTwin | Waste Network Overview", layout="wide")
 
@@ -421,6 +424,11 @@ if not st.session_state.twin_system.history:
     st.session_state.twin_system._record_history()
 if "active_page" not in st.session_state:
     st.session_state.active_page = "Overview"
+if st.session_state.active_page == "Alerts":
+    st.session_state.active_page = "Settings"
+st.session_state.setdefault("operational_alerts_enabled", False)
+st.session_state.setdefault("full_bin_alert_threshold", 85)
+st.session_state.setdefault("mixed_waste_flags", {})
 render_sidebar(st.session_state.twin_system, authenticated_user)
 
 if st.session_state.active_page != "Waste Segregation":
@@ -435,6 +443,7 @@ bins_df = pd.DataFrame(bin_rows)
 average_fill = round(bins_df["fill_level"].mean()) if not bins_df.empty else 0
 critical_count = int((bins_df["fill_level"] >= 85).sum()) if not bins_df.empty else 0
 warning_count = int(((bins_df["fill_level"] >= 70) & (bins_df["fill_level"] < 85)).sum()) if not bins_df.empty else 0
+show_operational_alerts(st.session_state.twin_system)
 
 if st.session_state.active_page == "Waste Segregation":
     render_waste_segregation_page()
@@ -442,6 +451,10 @@ elif st.session_state.active_page == "Sensors":
     render_sensors_page(st.session_state.twin_system)
 elif st.session_state.active_page == "Analytics":
     render_analytics_page(st.session_state.twin_system)
+elif st.session_state.active_page == "Bin Network":
+    render_bin_network_page(st.session_state.twin_system)
+elif st.session_state.active_page == "Settings":
+    render_settings_page()
 elif st.session_state.active_page != "Overview":
     st.markdown(f'<div class="page-heading">{escape(st.session_state.active_page)}</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Waste network operations</div>', unsafe_allow_html=True)

@@ -139,6 +139,7 @@ ecotwin/
 ├── ui/
 │   ├── analytics.py                # Volume and fill trends
 │   ├── authentication.py           # Login and first-admin setup screen
+│   ├── bin_network.py              # Filterable bin operations and service controls
 │   ├── camera.py                   # Intake camera preview
 │   ├── navigation.py               # Sidebar and sign-out
 │   └── sensors.py                  # Sensor table and manual ultrasonic input

@@ -22,11 +22,8 @@ def render_sidebar(twin_system, authenticated_user):
         ("Overview", ":material/space_dashboard:"),
         ("Waste Segregation", ":material/recycling:"),
         ("Bin Network", ":material/delete_outline:"),
-        ("City Map", ":material/map:"),
-        ("Fleet & Routes", ":material/local_shipping:"),
         ("Sensors", ":material/sensors:"),
         ("Analytics", ":material/monitoring:"),
-        ("Alerts", ":material/notifications:"),
     ]
     for page_name, page_icon in navigation:
         st.sidebar.button(

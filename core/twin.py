@@ -28,6 +28,13 @@ class SmartBinSystem:
             }
         }
         self.history = []
+        self.depot = {"lat": 12.9716, "lon": 77.5946}
+        self.vehicles = {
+            "TRUCK-01": {"name": "North Crew", "capacity_liters": 320.0, "status": "Available", "route_id": None},
+            "TRUCK-02": {"name": "South Crew", "capacity_liters": 450.0, "status": "Available", "route_id": None},
+        }
+        self.routes = []
+        self.route_sequence = 0
         for bin_details in self.bins.values():
             self._calculate_fill(bin_details)
         self._record_history()
@@ -38,6 +45,143 @@ class SmartBinSystem:
 
     def get_history(self):
         return self.history
+
+    def get_routes(self):
+        return self.routes
+
+    def get_vehicles(self):
+        return self.vehicles
+
+    @staticmethod
+    def _distance_km(origin, destination):
+        mean_latitude = math.radians((origin["lat"] + destination["lat"]) / 2)
+        north_km = (destination["lat"] - origin["lat"]) * 111.0
+        east_km = (destination["lon"] - origin["lon"]) * 111.0 * math.cos(mean_latitude)
+        return math.hypot(north_km, east_km)
+
+    def create_route(self, vehicle_id, bin_ids):
+        if vehicle_id not in self.vehicles:
+            raise ValueError("Unknown vehicle.")
+        vehicle = self.vehicles[vehicle_id]
+        if vehicle["status"] != "Available":
+            raise ValueError(f"{vehicle_id} is not available.")
+
+        requested_bins = list(dict.fromkeys(bin_ids))
+        if not requested_bins:
+            raise ValueError("Select at least one bin.")
+        if any(bin_id not in self.bins for bin_id in requested_bins):
+            raise ValueError("Route contains an unknown bin.")
+
+        total_volume = sum(self.bins[bin_id]["fill_volume_liters"] for bin_id in requested_bins)
+        if total_volume <= 0:
+            raise ValueError("Selected bins have no estimated waste to collect.")
+        if total_volume > vehicle["capacity_liters"]:
+            raise ValueError(
+                f"Selected load is {total_volume:.1f} L, above {vehicle_id}'s "
+                f"{vehicle['capacity_liters']:.1f} L capacity."
+            )
+
+        remaining = [bin_id for bin_id in requested_bins if self.bins[bin_id]["fill_volume_liters"] > 0]
+        ordered_bins = []
+        current_location = self.depot
+        while remaining:
+            highest_priority = max(
+                3 if self.bins[bin_id]["status"] == "Critical"
+                else 2 if self.bins[bin_id]["status"] == "Warning"
+                else 1
+                for bin_id in remaining
+            )
+            priority_bins = [
+                bin_id for bin_id in remaining
+                if (3 if self.bins[bin_id]["status"] == "Critical"
+                    else 2 if self.bins[bin_id]["status"] == "Warning" else 1) == highest_priority
+            ]
+            next_bin = min(
+                priority_bins,
+                key=lambda bin_id: self._distance_km(current_location, self.bins[bin_id]),
+            )
+            ordered_bins.append(next_bin)
+            remaining.remove(next_bin)
+            current_location = self.bins[next_bin]
+
+        route_stops = [
+            {
+                "order": stop_index,
+                "bin_id": bin_id,
+                "status": "Pending",
+                "volume_liters": self.bins[bin_id]["fill_volume_liters"],
+            }
+            for stop_index, bin_id in enumerate(ordered_bins, start=1)
+        ]
+        route_distance = self._distance_km(self.depot, self.bins[ordered_bins[0]])
+        route_distance += sum(
+            self._distance_km(self.bins[first], self.bins[second])
+            for first, second in zip(ordered_bins, ordered_bins[1:])
+        )
+        route_distance += self._distance_km(self.bins[ordered_bins[-1]], self.depot)
+
+        self.route_sequence += 1
+        route = {
+            "route_id": f"ROUTE-{self.route_sequence:03d}",
+            "vehicle_id": vehicle_id,
+            "status": "Planned",
+            "created_at": datetime.now(),
+            "stops": route_stops,
+            "total_volume_liters": round(total_volume, 1),
+            "estimated_distance_km": round(route_distance, 2),
+        }
+        self.routes.insert(0, route)
+        vehicle["status"] = "Assigned"
+        vehicle["route_id"] = route["route_id"]
+        return route
+
+    def dispatch_route(self, route_id):
+        route = next((item for item in self.routes if item["route_id"] == route_id), None)
+        if route is None:
+            raise ValueError("Route not found.")
+        if route["status"] != "Planned":
+            raise ValueError("Only planned routes can be dispatched.")
+        route["status"] = "Active"
+        route["dispatched_at"] = datetime.now()
+        self.vehicles[route["vehicle_id"]]["status"] = "En route"
+        return route
+
+    def complete_next_route_stop(self, route_id):
+        route = next((item for item in self.routes if item["route_id"] == route_id), None)
+        if route is None:
+            raise ValueError("Route not found.")
+        if route["status"] != "Active":
+            raise ValueError("Dispatch the route before completing stops.")
+
+        next_stop = next((stop for stop in route["stops"] if stop["status"] == "Pending"), None)
+        if next_stop is None:
+            raise ValueError("There are no pending stops on this route.")
+
+        bin_id = next_stop["bin_id"]
+        self.update_bin_level(bin_id, 0)
+        self.bins[bin_id]["emptied_at"] = datetime.now().strftime("%H:%M")
+        next_stop["status"] = "Completed"
+        next_stop["completed_at"] = datetime.now()
+
+        if all(stop["status"] == "Completed" for stop in route["stops"]):
+            route["status"] = "Completed"
+            route["completed_at"] = datetime.now()
+            vehicle = self.vehicles[route["vehicle_id"]]
+            vehicle["status"] = "Available"
+            vehicle["route_id"] = None
+        return next_stop
+
+    def cancel_route(self, route_id):
+        route = next((item for item in self.routes if item["route_id"] == route_id), None)
+        if route is None:
+            raise ValueError("Route not found.")
+        if route["status"] != "Planned":
+            raise ValueError("Only planned routes can be cancelled.")
+        route["status"] = "Cancelled"
+        vehicle = self.vehicles[route["vehicle_id"]]
+        vehicle["status"] = "Available"
+        vehicle["route_id"] = None
+        return route
 
     @staticmethod
     def _calculate_fill(bin_details):
