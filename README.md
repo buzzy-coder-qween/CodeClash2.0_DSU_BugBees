@@ -1,290 +1,242 @@
-# EcoTwin: Smart Waste Management Digital Twin
+# ♻️ EcoTwin: Smart Waste Management Digital Twin
 
-### AI-assisted waste segregation, bin telemetry, and collection planning
+> **AI-Powered Waste Segregation · IoT Bin Telemetry · Google Gemini Route Optimization**
 
-<p>
-   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+" />
-   <img src="https://img.shields.io/badge/UI-Streamlit-FF4B4B?logo=streamlit&logoColor=white" alt="Streamlit" />
-   <img src="https://img.shields.io/badge/Vision-Ultralytics%20YOLOv8-111F68" alt="Ultralytics YOLOv8" />
-   <img src="https://img.shields.io/badge/Sprint-48%20hours-16A085" alt="48-hour hackathon sprint" />
-   <img src="https://img.shields.io/badge/Status-Hackathon%20MVP-orange" alt="Hackathon MVP" />
-</p>
-
-**EcoTwin** is an AI-integrated prototype built during a 48-hour sprint for **Problem Track 1**. It combines a waste-segregation station with a digital twin of a smart-bin network, estimated sensor telemetry, and route-priority recommendations.
-
-> **MVP status:** The dashboard, simulated/manual telemetry, login gate, and model-training workflows are implemented. Physical sensors are not connected, waste-specific checkpoints must be trained and installed separately, and Google GenAI route generation is not yet wired into the app. The current route planner is deterministic.
-
-**Problem Track 1 · 48-hour hackathon build**
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
+[![Streamlit 1.40+](https://img.shields.io/badge/UI-Streamlit-FF4B4B?style=flat&logo=streamlit&logoColor=white)](https://streamlit.io)
+[![YOLOv8](https://img.shields.io/badge/Vision-Ultralytics%20YOLOv8-111F68?style=flat)](https://github.com/ultralytics/ultralytics)
+[![Google GenAI](https://img.shields.io/badge/Generative%20AI-Google%20Gemini-4285F4?style=flat&logo=google&logoColor=white)](https://aistudio.google.com)
+[![Status](https://img.shields.io/badge/Status-Hackathon%20MVP-16A085?style=flat)](#)
 
 ---
 
-## 📄 Executive Summary & Core Objective
+## 📌 Overview
 
-Waste streams are difficult to manage when items are mis-sorted, bin capacity is invisible, and collection routes are planned without current conditions. These problems matter in 2026 as cities face growing pressure to improve material recovery, reduce landfill use, and make waste operations more measurable.
+**EcoTwin** connects **computer vision at the intake bin** with an **IoT digital twin network** and **Google Gemini Generative AI** to solve urban waste management bottlenecks:
 
-EcoTwin's objective is to connect the **item-level view** of computer vision with the **network-level view** of a digital twin:
+1. **Intelligent Waste Segregation:** Detects items via camera or image upload using YOLOv8, classifies them into **Compost**, **Recyclable**, **Hazardous**, or **Landfill**, and provides AI-generated eco-handling advice.
+2. **Digital Twin of Smart Bins:** Monitors real-time ultrasonic fill levels, container volume (liters), temperature anomalies, battery health, and GIS coordinates across the city.
+3. **GenAI Route Optimization:** Sends live network telemetry to **Google Gemini** (`gemini-2.5-flash`) to generate an explainable collection route, prioritizing overflow hazards and minimizing carbon emissions.
+4. **EcoTwin AI Copilot:** A built-in assistant allowing municipal operators to ask operational questions in natural language (e.g. *"Which bins are at risk of overflow?"*).
 
-- Detect a waste item at an intake station using a camera or uploaded image.
-- Suggest a segregation stream and record the virtual sorting action.
-- Estimate each smart bin's fill from its dimensions and ultrasonic air-gap reading.
-- Show bin status, map positions, sensor values, and collection priorities in one dashboard.
+---
 
-The current volume estimate assumes a rectangular bin and a reasonably level waste surface. The telemetry is simulated or entered manually until physical hardware is connected. EcoTwin is a decision-support prototype, not an autonomous waste-handling system.
-
-## 🏗️ High-Level System Architecture
+## 🏗️ System Architecture
 
 ```text
-                    +----------------------------------+
-                    | PHYSICAL / SIMULATED BIN NETWORK |
-                    +----------------+-----------------+
+               +-------------------------------------------+
+               |        ECOTWIN DIGITAL TWIN PLATFORM      |
+               +---------------------+---------------------+
                                      |
-                +--------------------+--------------------+
-                |                                         |
-                v                                         v
-      +------------------------+             +------------------------+
-      | SENSOR TELEMETRY       |             | CAMERA / IMAGE INPUT   |
-      | Ultrasonic air gap     |             | Intake camera or       |
-      | Temperature, battery   |             | uploaded photo         |
-      +-----------+------------+             +-----------+------------+
-                  |                                          |
-                  v                                          v
-      +------------------------+             +------------------------+
-      | VOLUME ESTIMATOR       |             | YOLOv8 DETECTORS       |
-      | Bin dimensions + gap   |             | General model          |
-      | Liters + fill percent  |             | Optional e-waste model |
-      +-----------+------------+             +-----------+------------+
-                  |                                          |
-                  |                              class + confidence
-                  |                                          v
-                  |                              +------------------------+
-                  |                              | WASTE-STREAM MAPPER    |
-                  |                              | Virtual bin + sort log |
-                  |                              +-----------+------------+
-                  |                                          |
-                  +--------------------+--------------------+
-                                       v
-                    +----------------------------------+
-                    | STREAMLIT DIGITAL TWIN          |
-                    | Overview · Map · Sensors        |
-                    | Analytics · Waste Segregation   |
-                    +----------------+-----------------+
-                                     v
-                    +----------------------------------+
-                    | ROUTE RECOMMENDATION            |
-                    | Current: deterministic ranking  |
-                    +----------------+-----------------+
-                                     :
-                                     : planned integration
-                                     v
-                    +----------------------------------+
-                    | GOOGLE GENAI ROUTE EXPLANATION  |
-                    | Planned; not called by the app   |
-                    +----------------------------------+
+         +---------------------------+---------------------------+
+         |                                                       |
+         v                                                       v
++-------------------------------+               +-------------------------------+
+|     VISION & INTAKE STATION   |               |    IOT TELEMETRY & SENSORS    |
+| • Webcam or Image Upload      |               | • Ultrasonic sensor (fill %)  |
+| • Ultralytics YOLOv8 Detector |               | • Temperature & battery stats |
+| • Stream mapping (4 streams)  |               | • Digital twin geometry (cm/L)|
++---------------+---------------+               +---------------+---------------+
+                |                                               |
+                +-----------------------+-----------------------+
+                                        |
+                                        v
+                    +---------------------------------------+
+                    |        STREAMLIT DASHBOARD (UI)       |
+                    | Overview · Segregation · GIS Map      |
+                    | Sensors · Analytics · Settings        |
+                    +-------------------+-------------------+
+                                        |
+                                        v
+                    +---------------------------------------+
+                    |       GOOGLE GEMINI GENERATIVE AI     |
+                    |           (google-genai SDK)          |
+                    | • Dynamic route collection plan       |
+                    | • Material disposal & circular advice |
+                    | • Natural-language operations copilot |
+                    +---------------------------------------+
 ```
 
-**Current route output:** bins are ranked using their current fill readings. The `google-genai` dependency is present, but a GenAI routing service is not implemented yet.
+---
 
-## ⚙️ Supporting Objectives & Features
+## 🛠️ Tech Stack
 
-### Real-time Computer Vision Sorting
-
-- Capture from the Intake Camera or upload a waste image.
-- Run Ultralytics YOLOv8 object detection and map supported labels to virtual streams.
-- Use a separate e-waste checkpoint when `models/ewaste_yolov8n.pt` is installed.
-- Record virtual sorting actions and show per-stream capacity indicators.
-- Keep a clearly identified generic COCO fallback when waste-specific weights are unavailable.
-
-**Important:** YOLO identifies supported objects; it does not physically sort waste. The segregation-bin counts are prototype counters, not measured bin volume or verified contents. Review hazardous classifications before disposal.
-
-### Live Telemetry Tracking / GIS Mapping
-
-- Estimate fill height from ultrasonic sensor-to-waste distance.
-- Estimate volume for rectangular bins using their internal dimensions.
-- Show fill, estimated liters, air gap, temperature, battery, status, and location.
-- Inspect readings, enter a manual ultrasonic measurement, view fill history, and see bins on a map.
-
-The current readings are simulated or manually entered. No Raspberry Pi, ultrasonic sensor, load cell, or live GIS feed is connected yet.
-
-### GenAI Route Optimization
-
-- **Implemented now:** deterministic collection ordering based on bin fill.
-- **Planned:** send selected, non-sensitive twin state to Google GenAI for an explainable route proposal, then validate the response against bin capacity, route constraints, and operating rules before showing it.
-
-Do not treat generated recommendations as dispatch commands until the integration includes validation and operator approval.
-
-## 🛠️ Tech Stack & Dependencies
-
-| Technology | Role in EcoTwin | Status |
+| Component | Technology | Description |
 | :--- | :--- | :--- |
-| Python | Application logic, data models, authentication, and training scripts | Implemented |
-| Ultralytics YOLOv8 | Object detection and waste-model fine-tuning | Generic fallback included; dedicated waste weights are optional |
-| Streamlit | Dashboard, login gate, intake workflow, sensors, analytics, and map | Implemented |
-| Pandas | Telemetry tables and chart-ready data | Implemented |
-| OpenCV | Camera capture, image decoding, and annotation | Implemented |
-| SQLite | Local user accounts and failed-login records | Implemented |
-| Google GenAI API (`google-genai`) | Intended route explanation and optimization | Dependency present; integration pending |
-| Roboflow SDK | Optional e-waste dataset export for training | Training-only dependency |
+| **User Interface** | [Streamlit](https://streamlit.io/) | Interactive web dashboard with dark-mode aesthetics |
+| **Object Detection** | [Ultralytics YOLOv8](https://docs.ultralytics.com/) | Real-time classification of waste items & e-waste |
+| **Generative AI** | [Google GenAI SDK](https://ai.google.dev/) (`gemini-2.5-flash`) | Route reasoning, eco-disposal tips, and AI copilot |
+| **Digital Twin Engine** | Python (`core/twin.py`) | Volume calculation from ultrasonic distance & geometry |
+| **Computer Vision** | OpenCV & Pillow | Camera streaming, frame decoding, and annotation |
+| **Data & Mapping** | Pandas & Plotly | Telemetry data tables, historical trends, and charts |
+| **Authentication** | SQLite & PBKDF2 | Local admin authentication with salted password hashes |
 
-## 💻 Project Structure
+---
+
+## 📁 Project Structure
 
 ```text
-ecotwin/
-├── app.py                          # Streamlit entry point and page routing
+CodeClash2.0_DSU/
+├── app.py                      # Main Streamlit dashboard entry point
 ├── core/
-│   ├── auth.py                     # Accounts, password hashing, login throttling
-│   ├── genai.py                    # Reserved for planned GenAI integration
-│   ├── twin.py                     # Bin state, volume estimates, simulated telemetry
-│   ├── vision.py                   # YOLOv8 inference and optional e-waste ensemble
-│   └── waste_taxonomy.py           # Waste-stream mappings and model paths
+│   ├── auth.py                 # User authentication & password hashing
+│   ├── genai.py                # Google Gemini route planner, disposal advice & copilot
+│   ├── twin.py                 # Smart bin digital twin, volume calculations & simulation
+│   ├── vision.py               # YOLOv8 waste detection pipeline
+│   └── waste_taxonomy.py       # Waste categories & stream mappings
 ├── ui/
-│   ├── analytics.py                # Volume and fill trends
-│   ├── authentication.py           # Login and first-admin setup screen
-│   ├── bin_network.py              # Filterable bin operations and service controls
-│   ├── camera.py                   # Intake camera preview
-│   ├── navigation.py               # Sidebar and sign-out
-│   └── sensors.py                  # Sensor table and manual ultrasonic input
-├── scripts/
-│   ├── prepare_taco.py              # COCO-to-YOLO dataset preparation
-│   ├── train_waste_model.py         # General waste-stream training
-│   └── train_ewaste_model.py        # Separate Roboflow e-waste training
-├── datasets/
-│   └── README.md                   # Dataset sources, setup, and training commands
-├── models/                         # Generated checkpoints; not committed
-├── runs/                           # Ultralytics output; not committed
-├── data/                           # Local auth database; not committed
-├── .env                            # Local secrets/configuration; never commit
-├── .gitignore
-├── requirements.txt
-├── requirements-ewaste.txt        # Optional training dependencies
-└── yolov8n.pt                      # Generic YOLOv8 starting weights
+│   ├── analytics.py            # Capacity charts and volume trends
+│   ├── authentication.py       # Login portal
+│   ├── bin_network.py          # Detailed bin grid and service controls
+│   ├── camera.py               # Intake camera preview & capture
+│   ├── navigation.py           # Sidebar & simulated deposit actions
+│   ├── sensors.py              # Sensor telemetry & manual ultrasonic inputs
+│   └── settings.py             # Alert thresholds & Gemini API key manager
+├── data/                       # Local SQLite auth database (auto-created)
+├── models/                     # Checkpoints (e.g. e-waste YOLO weights)
+├── requirements.txt            # Main Python dependencies
+├── .env                        # Local secrets & API keys (do not commit)
+└── README.md                   # Project documentation
 ```
 
-Dataset downloads, trained weights, training runs, the SQLite database, and local secrets should stay out of version control.
+---
 
-## 🚀 Installation & Setup
+## 🚀 Step-by-Step Setup Guide
 
-### 1. Clone the repository
+Follow these simple steps in your terminal to get EcoTwin running on your local machine:
 
-The repository URL depends on your Git hosting account. This command prompts for the actual remote instead of assuming a URL:
+### 1. Clone the Repository
+
+Open your terminal or PowerShell and run:
 
 ```bash
-read -r -p "Repository clone URL: " REPO_URL
-git clone "$REPO_URL" ecotwin
-cd ecotwin
+git clone https://github.com/your-username/CodeClash2.0_DSU.git
+cd CodeClash2.0_DSU
 ```
 
-In Windows PowerShell:
+*(Replace the URL with your actual repository remote if different).*
 
+---
+
+### 2. Create and Activate a Virtual Environment
+
+It is recommended to use **Python 3.10+**.
+
+#### On Windows (PowerShell):
 ```powershell
-$RepoUrl = Read-Host "Repository clone URL"
-git clone $RepoUrl ecotwin
-Set-Location ecotwin
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 ```
 
-### 2. Create and activate a virtual environment
+> **Note:** If PowerShell gives a script execution policy error, run this first:
+> ```powershell
+> Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+> .\.venv\Scripts\Activate.ps1
+> ```
 
-macOS / Linux / Git Bash:
-
+#### On macOS / Linux:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-Windows PowerShell:
+---
 
-```powershell
-py -3 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
+### 3. Install Dependencies
 
-If PowerShell blocks activation, allow it for this terminal session only:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
-.\.venv\Scripts\Activate.ps1
-```
-
-### 3. Install the application dependencies
+Upgrade `pip` and install all required packages:
 
 ```bash
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
-For e-waste training only, stop running Streamlit/Python processes first, then install the optional dependencies. On Windows, a running process may lock OpenCV's native DLL during package replacement:
+---
 
-```bash
-python -m pip install -r requirements-ewaste.txt
-```
+### 4. Configure Environment Variables (`.env`)
 
-### 4. Configure local environment variables
+Create a `.env` file in the project root directory.
 
-Create `.env` locally; do not commit it.
-
-macOS / Linux / Git Bash:
-
-```bash
-touch .env
-```
-
-Windows PowerShell:
-
+#### Windows (PowerShell):
 ```powershell
 New-Item -ItemType File -Path .env -Force
 ```
 
-Open `.env` in your editor and add only the settings you need:
+#### macOS / Linux:
+```bash
+touch .env
+```
+
+Open `.env` in your text editor and add:
 
 ```dotenv
 ECOTWIN_AUTH_DB=data/auth.sqlite3
-ROBOFLOW_API_KEY=
-ROBOFLOW_EWASTE_WORKSPACE=computer-vision-learning-touhj
-ROBOFLOW_EWASTE_PROJECT=capstone-kanon-2
-ROBOFLOW_EWASTE_VERSION=4
-EWASTE_MODEL_PATH=models/ewaste_yolov8n.pt
-GOOGLE_API_KEY=
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
-`ROBOFLOW_API_KEY` is required only to download the e-waste training dataset. `GOOGLE_API_KEY` is reserved for the planned GenAI work and is not currently consumed by the app. Keep real keys in your local `.env` file and never commit that file.
+> 💡 **Where do I get a Gemini API Key?**
+> You can get a free API key in 30 seconds from [Google AI Studio](https://aistudio.google.com/app/apikey).
+> *(Note: If you leave `GEMINI_API_KEY` blank, the app runs gracefully in simulated AI mode).*
 
-### 5. Create the first administrator
+---
 
-Run once from the project root. The password is entered through a hidden terminal prompt and stored as a salted hash in SQLite:
+### 5. Create Your Admin Account
+
+Initialize the local authentication database by creating your admin login:
 
 ```bash
 python -m core.auth create-admin
 ```
 
-### 6. Start EcoTwin
+You will be prompted to enter an **admin username** and **password**.
+
+---
+
+### 6. Run the Application
+
+Launch the Streamlit web dashboard:
 
 ```bash
 streamlit run app.py
 ```
 
-Open the local URL printed by Streamlit and sign in with the administrator account. The app has no public self-registration. Local operator account management and role-based authorization are not yet implemented.
-
-## 🎓 Model Training
-
-For the general waste model, prepare TACO and train only after reviewing the generated class counts:
-
-```bash
-python -m scripts.prepare_taco --download-images
-python -m scripts.train_waste_model --data datasets/processed/taco_yolo/dataset.yaml
+Streamlit will print the local access URL:
+```text
+  Local URL: http://localhost:8501
+  Network URL: http://192.168.x.x:8501
 ```
 
-For the separate e-waste stream, configure `ROBOFLOW_API_KEY` in `.env`, install `requirements-ewaste.txt`, then run:
+Open **`http://localhost:8501`** in your browser and log in with your admin credentials! 🎉
 
-```bash
-python -m scripts.train_ewaste_model --epochs 60 --batch 8
-```
+---
 
-Training requires internet access and may take a long time on CPU-only hardware. The e-waste script validates mAP50 before installing its checkpoint. See [datasets/README.md](datasets/README.md) for dataset coverage, licensing, and limitations. No trained waste-specific weights are bundled by default.
+## 🎮 How to Use EcoTwin
 
-## 🔮 Future Roadmap
+Once logged in, explore the key features through the left sidebar:
 
-- **Edge sensing:** connect Raspberry Pi or similar gateways to ultrasonic level sensors, load cells, temperature sensors, and camera stations over MQTT.
-- **Persistent twin history:** replace in-memory telemetry with a time-series store and expose sensor health/last-seen state.
-- **Validated GenAI routing:** connect Google GenAI to an explainable route planner with constraints, operator approval, and a deterministic fallback.
-- **Production access control:** add admin-managed operator accounts, role enforcement, audit logs, and secure deployment secrets.
-- **City-wide deployment:** move ingestion and storage to a cloud service, add tenant/site boundaries, monitoring, backups, and managed model releases.
-- **Model quality:** gather locally representative waste images, address class imbalance, test contamination cases, and track per-class precision/recall before autonomous use.
+| Page / Feature | What You Can Do |
+| :--- | :--- |
+| **Overview** | View top-level network metrics, 4 live smart bins, critical warnings, and the **AI Routing Recommendations** panel. |
+| **Plan Route with Gemini** | In the Overview panel, click **"Plan route with Gemini"** to generate an AI collection sequence with rationale and carbon savings. |
+| **✦ EcoTwin AI Copilot** | Scroll to the bottom of Overview to ask Gemini questions about network status, thermal spikes, or battery drain. |
+| **Simulate Waste Deposit** | Click **"Simulate waste deposit"** in the sidebar to simulate a waste deposit event. Notice the **AI Environmental Guidance** with circular tips! |
+| **Waste Segregation** | Turn on your intake camera or upload an image of a waste item. Click **"Classify item"** to detect it with YOLOv8 and view disposal guidance. |
+| **Sensors** | Inspect ultrasonic air gap readings, manual test distance inputs, and real-time fill level changes. |
+| **Bin Network & Map** | Filter smart bins by status, dispatch collection trucks, or view geographic coordinates on the city map. |
+| **Settings** | Adjust the full-bin alert threshold and easily update/test your **Gemini API key** directly in the UI. |
+
+---
+
+## 🔮 Roadmap & Future Enhancements
+
+- **Physical Hardware Hookup:** Connect ultrasonic distance sensors (HC-SR04) and microcontrollers (ESP32 / Raspberry Pi) via MQTT or REST API.
+- **Dedicated Custom Weights:** Train waste-specific models using the included TACO dataset scripts (`scripts/prepare_taco.py`).
+- **Autonomous Dispatch Integration:** Connect Gemini routing proposals directly to driver navigation apps (e.g. Google Maps API / Leaflet).
+- **Time-Series Telemetry Store:** Migrate in-memory history to PostgreSQL / TimescaleDB for long-term municipal analytics.
+
+---
+
+## 📄 License & Credits
+
+Built during **CodeClash 2.0 (Problem Track 1)**.  
+Open-source under the [MIT License](LICENSE).

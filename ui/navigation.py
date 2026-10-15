@@ -59,6 +59,15 @@ def render_sidebar(twin_system, authenticated_user):
     if st.sidebar.button("Simulate waste deposit", icon=":material/delete:", width="stretch"):
         deposit_event = twin_system.simulate_waste_deposit()
         if deposit_event:
+            try:
+                from core.genai import get_waste_disposal_advice
+                deposit_event["genai_advice"] = get_waste_disposal_advice(
+                    deposit_event["item_name"],
+                    deposit_event["category"],
+                    deposit_event["risk"],
+                )
+            except Exception as advice_err:
+                print(f"[EcoTwin GenAI] Advice error: {advice_err}")
             st.session_state["last_deposit_event"] = deposit_event
             # Append to rolling deposit history (keep last 50)
             deposit_history = st.session_state.setdefault("deposit_history", [])

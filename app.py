@@ -221,6 +221,36 @@ st.markdown(
         background: #090e0f; border: 1px solid #20292b; border-radius: 8px;
         margin-top: 10px;
     }
+    .deposit-ai-box {
+        margin-top: 13px; padding: 12px 14px; border-radius: 8px;
+        background: #0b1415; border: 1px solid #1a332d;
+    }
+    .deposit-ai-header {
+        display: flex; align-items: center; justify-content: space-between;
+        color: #46d8ad; font-size: 11px; font-weight: 700; margin-bottom: 7px;
+    }
+    .deposit-ai-item {
+        color: #9eb1af; font-size: 10px; line-height: 1.5; margin-bottom: 4px;
+    }
+    .deposit-ai-item strong {
+        color: #edf3f1; font-weight: 600;
+    }
+    .route-card-wrapper {
+        min-height: 190px; max-height: 380px; overflow-y: auto; padding: 12px 14px;
+        margin: 12px 0 10px; background: #0c1213; border: 1px solid #20292b;
+        border-radius: 7px; font-size: 12px; line-height: 1.6; color: #c4cecc;
+    }
+    .copilot-card {
+        padding: 16px; border-radius: 10px; background: #0c1214; border: 1px solid #1e282a; margin-top: 10px;
+    }
+    .ai-badge-active {
+        background: #15332b; color: #46d8ad; padding: 2px 8px; border-radius: 12px;
+        font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .ai-badge-simulated {
+        background: #2a2318; color: #e8bd5e; padding: 2px 8px; border-radius: 12px;
+        font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;
+    }
 
     @media (max-width: 760px) {
         .seg-bin-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
@@ -414,6 +444,15 @@ def render_waste_segregation_page():
                 with st.spinner("Analyzing image with YOLOv8..."):
                     st.session_state.seg_classification = classify_segregation_frame(st.session_state.seg_input_frame)
                     st.session_state.seg_classification_attempted = True
+                    if st.session_state.seg_classification:
+                        try:
+                            from core.genai import get_waste_disposal_advice
+                            st.session_state.seg_classification["genai_advice"] = get_waste_disposal_advice(
+                                st.session_state.seg_classification["class_name"],
+                                st.session_state.seg_classification["category"],
+                            )
+                        except Exception as e:
+                            print(f"[EcoTwin GenAI] Advice error: {e}")
         classification = st.session_state.seg_classification
         with sort_col:
             if st.button("Sort item", key="seg_sort", icon=":material/move_to_inbox:", type="primary", disabled=classification is None, width="stretch"):
@@ -443,6 +482,22 @@ def render_waste_segregation_page():
                 unsafe_allow_html=True,
             )
             st.image(cv2.cvtColor(classification["frame"], cv2.COLOR_BGR2RGB), channels="RGB", width="stretch")
+            if classification.get("genai_advice"):
+                adv = classification["genai_advice"]
+                st.markdown(
+                    f"""
+                    <div class="deposit-ai-box" style="margin-top:8px">
+                      <div class="deposit-ai-header">
+                        <span>🌱 AI Segregation & Environmental Guidance</span>
+                        <span style="font-size:9px;opacity:0.8">Google Gemini</span>
+                      </div>
+                      <div class="deposit-ai-item"><strong>Handling:</strong> {escape(adv.get('advice', ''))}</div>
+                      <div class="deposit-ai-item"><strong>Impact:</strong> {escape(adv.get('impact', ''))}</div>
+                      <div class="deposit-ai-item"><strong>Circular Tip:</strong> {escape(adv.get('eco_tip', ''))}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
         elif st.session_state.seg_input_frame is None:
             st.caption("Capture or upload an item, then classify it to enable sorting.")
         elif st.session_state.seg_classification_attempted:
@@ -625,30 +680,39 @@ else:
 
     with route_panel:
         with st.container(border=True, key="route_recommendations"):
+            from core.genai import generate_ai_route_plan, is_genai_available
+            genai_connected = is_genai_available()
+            badge = '<span class="ai-badge-active">✦ Gemini Active</span>' if genai_connected else '<span class="ai-badge-simulated">⚡ Simulation Mode</span>'
+
             st.markdown(
-                '<div class="route-title">AI Routing Recommendations</div><div class="route-subtitle">Collection plan from current fill levels and bin health</div>',
+                f'<div style="display:flex;align-items:center;justify-content:space-between">'
+                f'<div class="route-title">AI Routing Recommendations</div>{badge}</div>'
+                f'<div class="route-subtitle">Collection plan from current fill levels and bin health</div>',
                 unsafe_allow_html=True,
             )
+
             if st.session_state.get("route_plan"):
                 plan_text = st.session_state.route_plan
             else:
                 plan_text = (
                     "No route generated yet.\n\n"
-                    "Generate a plan to prioritize bins by overflow risk, then remaining fill level."
+                    "Click **Plan route with Gemini** to analyze telemetry, overflow risk, and fleet logistics."
                 )
+
             st.markdown(
-                f'<div class="route-copy"><div class="route-kicker">ROUTE PREVIEW</div>{escape(plan_text)}</div>',
+                f'<div class="route-kicker" style="margin-top:12px;margin-bottom:6px">AI DISPATCH RECOMMENDATION</div>',
                 unsafe_allow_html=True,
             )
-            if st.button("Plan route", key="generate_route", icon=":material/route:", type="primary", width="stretch"):
-                priority_bins = sorted(bin_rows, key=lambda item: item["fill_level"], reverse=True)
-                route_lines = ["Suggested collection order", ""]
-                route_lines.extend(
-                    f"{index}. {item['Bin ID']}  ·  {item['fill_level']}% full"
-                    for index, item in enumerate(priority_bins, start=1)
-                )
-                route_lines.extend(["", "Critical bins are serviced first."])
-                st.session_state.route_plan = "\n".join(route_lines)
+            with st.container(border=False):
+                st.markdown(f'<div class="route-card-wrapper">', unsafe_allow_html=True)
+                st.markdown(plan_text)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            btn_label = "Plan route with Gemini" if genai_connected else "Plan route (Simulated)"
+            if st.button(btn_label, key="generate_route", icon=":material/auto_awesome:", type="primary", width="stretch"):
+                with st.spinner("🤖 Gemini is analyzing digital twin telemetry and calculating route..."):
+                    vehicles_data = st.session_state.twin_system.get_vehicles() if hasattr(st.session_state.twin_system, "get_vehicles") else None
+                    st.session_state.route_plan = generate_ai_route_plan(bin_rows, vehicles=vehicles_data)
                 st.rerun()
 
     now = datetime.now()
@@ -689,6 +753,20 @@ else:
             if deposit_event:
                 severity = "critical" if deposit_event["status"] == "Critical" else "warning" if deposit_event["status"] == "Warning" else "normal"
                 risk_class = deposit_event["risk"].lower()
+                ai_advice_html = ""
+                if deposit_event.get("genai_advice"):
+                    adv = deposit_event["genai_advice"]
+                    ai_advice_html = f"""
+                      <div class="deposit-ai-box">
+                        <div class="deposit-ai-header">
+                          <span>🌱 AI Environmental Guidance</span>
+                          <span style="font-size:9px;opacity:0.8">Google Gemini</span>
+                        </div>
+                        <div class="deposit-ai-item"><strong>Handling:</strong> {escape(adv.get('advice', ''))}</div>
+                        <div class="deposit-ai-item"><strong>Impact:</strong> {escape(adv.get('impact', ''))}</div>
+                        <div class="deposit-ai-item"><strong>Circular Tip:</strong> {escape(adv.get('eco_tip', ''))}</div>
+                      </div>
+                    """
                 st.markdown(
                     f"""
                     <div class="deposit-card" style="--deposit-accent:{deposit_event['color']}">
@@ -726,6 +804,7 @@ else:
                         <div class="deposit-fill-track"><div class="deposit-fill-inner {severity}" style="width:{deposit_event['new_fill']}%;background:{deposit_event['color']}"></div></div>
                         <div class="deposit-fill-label">{deposit_event['new_fill']}%</div>
                       </div>
+                      {ai_advice_html}
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -764,4 +843,67 @@ else:
                     '<div class="deposit-empty-state">No deposit history yet.</div>',
                     unsafe_allow_html=True,
                 )
+
+    # ── EcoTwin AI Copilot Section ──
+    from core.genai import ask_digital_twin_copilot, is_genai_available
+
+    with st.container(border=True, key="copilot_panel"):
+        copilot_title, copilot_status = st.columns([1.5, 1], vertical_alignment="center")
+        with copilot_title:
+            st.markdown('<div class="event-heading">✦ EcoTwin AI Copilot</div>', unsafe_allow_html=True)
+            st.markdown('<div class="event-caption">Natural-language operational queries powered by Google Gemini</div>', unsafe_allow_html=True)
+        with copilot_status:
+            copilot_badge = '<div style="text-align:right"><span class="ai-badge-active">✦ Gemini Active</span></div>' if is_genai_available() else '<div style="text-align:right"><span class="ai-badge-simulated">⚡ Simulation Mode</span></div>'
+            st.markdown(copilot_badge, unsafe_allow_html=True)
+
+        q_col1, q_col2, q_col3 = st.columns(3, gap="small")
+        with q_col1:
+            if st.button("🚨 Urgent Bins Summary", key="copilot_q1", width="stretch"):
+                st.session_state["copilot_query_input"] = "Which bins need immediate collection and what are the primary overflow risks?"
+        with q_col2:
+            if st.button("🌡️ Thermal & Battery Anomalies", key="copilot_q2", width="stretch"):
+                st.session_state["copilot_query_input"] = "Are there any high temperature readings or battery depletion risks across the bins?"
+        with q_col3:
+            if st.button("🌱 Environmental & Carbon Impact", key="copilot_q3", width="stretch"):
+                st.session_state["copilot_query_input"] = "How can we optimize truck routes to minimize fuel consumption and carbon footprint?"
+
+        user_query = st.text_input(
+            "Ask a question about the bin network...",
+            value=st.session_state.get("copilot_query_input", ""),
+            placeholder="e.g. Which bin is closest to overflow and should we dispatch TRUCK-01?",
+            key="copilot_user_text",
+        )
+
+        ask_btn, clear_btn = st.columns([1.2, 0.4], gap="small")
+        with ask_btn:
+            if st.button("Ask Copilot", key="copilot_submit", icon=":material/auto_awesome:", type="primary", width="stretch"):
+                query_to_send = user_query.strip() or st.session_state.get("copilot_query_input", "").strip()
+                if query_to_send:
+                    with st.spinner("🤖 Gemini is analyzing digital twin telemetry..."):
+                        response_text = ask_digital_twin_copilot(query_to_send, bin_rows)
+                        st.session_state["copilot_last_response"] = response_text
+                        st.session_state["copilot_last_question"] = query_to_send
+                    st.rerun()
+                else:
+                    st.warning("Please type a question or click one of the quick inquiry buttons above.")
+        with clear_btn:
+            if st.button("Clear Copilot", key="copilot_clear", width="stretch"):
+                st.session_state.pop("copilot_last_response", None)
+                st.session_state.pop("copilot_last_question", None)
+                st.session_state.pop("copilot_query_input", None)
+                st.rerun()
+
+        if st.session_state.get("copilot_last_response"):
+            with st.container():
+                st.markdown(
+                    f"""
+                    <div class="copilot-card">
+                      <div style="font-size:11px;color:#7e8b8d;margin-bottom:6px">OPERATOR QUERY: <strong style="color:#e8efed">{escape(st.session_state.get('copilot_last_question', ''))}</strong></div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                with st.container(border=True):
+                    st.markdown(st.session_state["copilot_last_response"])
+
 
